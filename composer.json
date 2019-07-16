@@ -1,0 +1,55 @@
+{
+  "name": "coffeebike/dachser-bundle",
+  "type": "symfony-bundle",
+  "description": "Symfony Bundle for Dachser API",
+  "homepage": "https://coffee-bike.com",
+  "license": "GPL-3.0",
+  "authors": [
+    {
+      "name": "Jonas Dambacher",
+      "email": "jonas.dambacher@coffee-bike.com"
+    },
+    {
+      "name": "Andreas Penner",
+      "email": "andreas.penner@coffee-bike.com"
+    }
+  ],
+  "require": {
+    "php": "^7.2",
+    "guzzlehttp/guzzle": "^6.3",
+    "symfony/cache": "^4.2",
+    "symfony/framework-bundle": "^4.0",
+    "symfony/property-access": "^4.0",
+    "symfony/yaml": "^4.0"
+  },
+  "require-dev": {
+    "symfony/phpunit-bridge": "^4.0"
+  },
+  "config": {
+    "platform": {
+      "php": "7.2.0"
+    },
+    "preferred-install": {
+      "*": "dist"
+    },
+    "sort-packages": true
+  },
+  "autoload": {
+    "psr-4": {
+      "CoffeeBike\\DachserBundle\\": ""
+    },
+    "exclude-from-classmap": [
+      "/Tests/"
+    ]
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "CoffeeBike\\DachserBundle\\Tests\\": "tests/"
+    }
+  },
+  "conflict": {
+    "symfony/symfony": "<4.0"
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}
