@@ -17,10 +17,11 @@
   "require": {
     "php": "^7.2",
     "guzzlehttp/guzzle": "^6.3",
-    "symfony/cache": "^4.2",
+    "symfony/cache": "^4.1",
     "symfony/framework-bundle": "^4.0",
     "symfony/property-access": "^4.0",
-    "symfony/yaml": "^4.0"
+    "symfony/yaml": "^4.0",
+    "phpseclib/phpseclib": "~2.0"
   },
   "require-dev": {
     "symfony/phpunit-bridge": "^4.0"
