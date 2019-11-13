@@ -35,6 +35,7 @@ class Configuration implements ConfigurationInterface
             ->scalarNode('dachser_sftp_local_in_path')->end()
             ->scalarNode('dachser_sftp_local_out_path')->end()
             ->scalarNode('dachser_sftp_local_in_save_path')->end()
+            ->scalarNode('dachser_sftp_local_in_tmp')->end()
             ->end()
         ;
 

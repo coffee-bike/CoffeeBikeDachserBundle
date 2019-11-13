@@ -9,7 +9,7 @@ class DeliveryResponse extends DachserMappingObject
     /**
      * @ORM\Column(type="string")
      */
-    protected $type_identifier = '';
+    protected $type_identifier = 'BEWAU';
 
     protected $mapping = [
         'lieferauftragsnummer_mikado' => [

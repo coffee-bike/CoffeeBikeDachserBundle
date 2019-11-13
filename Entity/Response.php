@@ -1,25 +1,41 @@
 <?php
 
-
 namespace CoffeeBike\DachserBundle\Entity;
-
 
 class Response
 {
-    private $messages = array();
     private $objects = array();
-    private $newObjectIds = array();
+    private $type = "";
 
-    public function addObject($aData)
+    public function addObject($type, $aData)
     {
-        switch ($aData[0]) {
+        /*
+         * Bewegung Wareneingang"BEWEI"
+         * Bewegung Warenausgang "BEWAU"
+         * Bestände "BESTA"
+         * Statusänderungen "STATI"
+         * Auftragsrückmeldung "RUCKP"
+         * Kontierungsdaten "RECHN"
+         * Borderos "ABORD"
+         * Entladeberichte "AENTL"
+         * Statusinformationen "ASTAT"
+         */
+        switch ($type->type) {
             // FIXME: Add mapping type for delivery response
-            case 'DeliveryResponse':
+            case 'BEWAU':
                 $object = new DeliveryResponse();
                 break;
+
+            case 'BEWEI':
+            case 'BESTA':
+            case 'STATI':
+            case 'RUCKP':
+            case 'RECHN':
+            case 'ABORD':
+            case 'AENTL':
+            case 'ASTAT':
             default:
                 die('Entity not mapped in DachserBundle!');
-
         }
 
         if (isset($object)) {
@@ -31,25 +47,5 @@ class Response
     public function getObjects()
     {
         return $this->objects;
-    }
-
-    public function addMessage($message)
-    {
-        $this->messages[] = $message;
-    }
-
-    public function getMessages()
-    {
-        return $this->messages;
-    }
-
-    public function addNewObjectId($newObjectId)
-    {
-        $this->newObjectIds[] = $newObjectId;
-    }
-
-    public function getNewObjectIds()
-    {
-        return $this->newObjectIds;
     }
 }

@@ -153,4 +153,12 @@ class DachserMappingObject extends DachserObject
 
         return $this;
     }
+
+    /**
+     * @return string
+     */
+    public function getTypeIdentifier(): string
+    {
+        return $this->type_identifier;
+    }
 }
