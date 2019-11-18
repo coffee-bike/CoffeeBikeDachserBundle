@@ -5,10 +5,11 @@ namespace CoffeeBike\DachserBundle\Entity;
 class Response
 {
     private $objects = array();
-    private $type = "";
+    private $type_key = "";
 
     public function addObject($type, $aData)
     {
+        $this->type_key = $type;
         /*
          * Bewegung Wareneingang"BEWEI"
          * Bewegung Warenausgang "BEWAU"
@@ -20,26 +21,25 @@ class Response
          * Entladeberichte "AENTL"
          * Statusinformationen "ASTAT"
          */
-        switch ($type->type) {
+        switch ($this->type_key) {
             // FIXME: Add mapping type for delivery response
-            case 'BEWAU':
+            case 'RUCKP':
                 $object = new DeliveryResponse();
                 break;
-
+            case 'BEWAU':
             case 'BEWEI':
             case 'BESTA':
             case 'STATI':
-            case 'RUCKP':
             case 'RECHN':
             case 'ABORD':
             case 'AENTL':
             case 'ASTAT':
             default:
-                die('Entity not mapped in DachserBundle!');
+                throw new \Exception('Entity not mapped in DachserBundle!');
         }
 
         if (isset($object)) {
-            $object->setData($aData);
+            $object->setDataWithoutKey($aData);
             $this->objects[] = $object;
         }
     }

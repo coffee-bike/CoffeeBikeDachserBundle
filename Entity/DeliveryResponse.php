@@ -7,10 +7,19 @@ namespace CoffeeBike\DachserBundle\Entity;
 class DeliveryResponse extends DachserMappingObject
 {
     /**
+     * Type of Response CSV File
+     *
+     * @var string $type_identifier
+     *
      * @ORM\Column(type="string")
      */
-    protected $type_identifier = 'BEWAU';
+    protected $type_identifier = 'RUCKP';
 
+    /**
+     * Mapping for Response CSV File
+     *
+     * @var array $mapping
+     */
     protected $mapping = [
         'lieferauftragsnummer_mikado' => [
             'short' => 'A',
@@ -32,7 +41,7 @@ class DeliveryResponse extends DachserMappingObject
         ],
         'auftrraggeber_referenz_1' => [
             'short' => 'D',
-            'description' => 'Auftrraggeber Referenz 1',
+            'description' => 'Auftraggeber Referenz 1',
             'length' => 35,
             'required' => true
         ],

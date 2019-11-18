@@ -5,9 +5,29 @@ namespace CoffeeBike\DachserBundle\Entity;
 
 class DeliveryRequest extends DachserMappingObject
 {
+    /**
+     * Columns for identifier
+     *
+     * @var string $type_key
+     *
+     * @ORM\Column(type="string")
+     */
     protected $type_key = 'kennzeichen_anwendungs_id';
+
+    /**
+     * Type of Response CSV File
+     *
+     * @var string $type_identifier
+     *
+     * @ORM\Column(type="string")
+     */
     protected $type_identifier = 'DACHSER-DELIVERYORDER-CSV3';
 
+    /**
+     * Mapping for Request CSV File
+     *
+     * @var array $mapping
+     */
     protected $mapping = [
         'kennzeichen_anwendungs_id' => [
             'short' => 'A ',

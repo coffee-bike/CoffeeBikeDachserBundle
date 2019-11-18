@@ -4,15 +4,13 @@
 namespace CoffeeBike\DachserBundle\Services;
 
 use CoffeeBike\DachserBundle\Entity\Response;
-use CoffeeBike\DachserBundle\Entity\ResponseMessage;
-use Symfony\Component\HttpKernel\KernelInterface;
 use phpseclib\Net\SFTP;
 
 class DachserManager
 {
-    private $sftp = null;
+    protected $sftp = null;
 
-    private $credentials = array(
+    protected $credentials = array(
         "dachser_customer_number_warehouse" => null,
         "dachser_storage_customer_number" => null,
         "dachser_customer_number_principal" => null,
@@ -31,7 +29,20 @@ class DachserManager
         "dachser_sftp_local_out_tmp" => null,
     );
 
-    private $projectDir = null;
+    protected $projectDir = null;
+
+    // Init local path variables
+    protected $localDir = null;
+    protected $localInDir = null;
+    protected $localInTmpDir = null;
+    protected $localInSaveDir = null;
+    protected $localOutDir = null;
+    protected $localOutTmpDir = null;
+
+    // init remote path variables
+    protected $remoteInDir = null;
+    protected $remoteInSaveDir = null;
+    protected $remoteOutDir = null;
 
     /**
      * DachserManager constructor.
@@ -90,13 +101,27 @@ class DachserManager
         $this->credentials["dachser_sftp_local_out_path"] = $dachser_sftp_local_out_path;
         $this->credentials["dachser_sftp_local_out_tmp"] = $dachser_sftp_local_out_tmp;
 
-        $this->projectDir = $projectDir;
-
         $this->sftp = new SFTP($dachser_sftp_host);
 
         if (!$this->sftp->login($dachser_sftp_username, $dachser_sftp_password)) {
             throw new \Exception(sprintf("Login %s failed with user %s", $dachser_sftp_host, $dachser_sftp_username));
         }
+
+        // Setting project root dir where the folders for Dachser are in it
+        $this->projectDir = $projectDir;
+
+        // Setting local path variables
+        $this->localDir = $projectDir . '/' . $dachser_sftp_local_dir;
+        $this->localInDir = $this->localDir . $dachser_sftp_local_in_path;
+        $this->localInTmpDir = $this->localDir . $dachser_sftp_local_in_tmp;
+        $this->localInSaveDir = $this->localDir . $dachser_sftp_local_in_save_path;
+        $this->localOutDir = $this->localDir . $dachser_sftp_local_out_path;
+        $this->localOutTmpDir = $this->localDir . $dachser_sftp_local_out_tmp;
+
+        // Setting remote path variables
+        $this->remoteInDir = $dachser_sftp_remote_in_path;
+        $this->remoteInSaveDir = $dachser_sftp_remote_in_save_path;
+        $this->remoteOutDir = $dachser_sftp_remote_out_path;
 
         if (!$this->checkAndCreateLocalDirectories()) {
             throw new \Exception("Directories for SFTP cannot created");
@@ -168,38 +193,69 @@ class DachserManager
     }
 
     /**
+     * Group Dachser Response File by reference and add DachserId DachserNve and DachserShippmentId to it
+     *
+     * @param Response $responses
+     * @return array
+     */
+    public function groupDeliveryResponseByReference(Response $responses): array
+    {
+        $groupedResponse = [];
+
+        // Parse response objects
+        foreach ($responses->getObjects() as $object) {
+            // Get reference, DachserId, DachserNve and DachserShippmentId
+            $reference = $object->getField('auftrraggeber_referenz_1');
+            $dachserId = $object->getField('lieferauftragsnummer_mikado');
+            $dachserNve = $object->getField('versand_nve');
+            $dachserShippmentId = $object->getField('sendungsnummer_dachser');
+
+            // Check if group in array exists, if not create new group and initiate with placeholder items
+            if (!isset($groupedResponse[$reference])) {
+                $groupedResponse[$reference] = [
+                    'dachserId' => [],
+                    'dachserNve' => [],
+                    'dachserShippmentId' => [],
+                ];
+            }
+
+            // Add DachserId, DachserNve and DachserShippmentId to group
+            $groupedResponse[$reference]['dachserId'][$dachserId] = $dachserId;
+            $groupedResponse[$reference]['dachserNve'][$dachserNve] = $dachserNve;
+            $groupedResponse[$reference]['dachserShippmentId'][$dachserShippmentId] = $dachserShippmentId;
+        }
+
+        return $groupedResponse;
+    }
+
+    /**
      * Fetch file from sftp server and create response objects
      *
      * @throws \Exception
      */
-    public function fetch()
+    public function fetchFileToDachserResponses(array $fileInformations)
     {
-        $files = $this->fetchFilesFromSftpToTmp();
-
-        if (empty($files)) {
-            return false;
+        if (!file_exists($fileInformations['filepath'])) {
+            throw new \Exception(sprintf("File %s not exists!", $fileInformations['filepath']));
         }
 
         $response = new Response();
 
-        foreach ($files as $file) {
-            $responseObjects = array();
-            $handle = fopen($file['filepath'],'r');
-            $counter = 0;
-            while ($line = fgetcsv($handle, 0, ';', '"')) {
-                // Skip header of csv
-                if (!$counter) {
-                    continue;
-                }
-                $responseObjects[] = $line;
-                $counter++;
-            }
-            fclose($handle);
+        $handle = fopen($fileInformations['filepath'],'r');
 
-            foreach ($responseObjects as $responseObject) {
-                $response->addObject($file['type'], $responseObject);
+        // Setting skip for first line of csv (header line) to true and later if skipped to false
+        $skip = true;
+
+        while ($line = fgetcsv($handle, 0, ';')) {
+            // Skip header of csv
+            if ($skip) {
+                $skip = false;
+                continue;
             }
+            $response->addObject($fileInformations['type'], $line);
         }
+
+        fclose($handle);
 
         return $response;
     }
@@ -213,13 +269,13 @@ class DachserManager
     public function checkAndCreateLocalDirectories(): bool
     {
         $directories = [
-            'dachser_sftp_local_dir' => $this->getCredential('dachser_sftp_local_dir'),
-            'dachser_sftp_local_in_path' => $this->getCredential('dachser_sftp_local_dir') . $this->getCredential('dachser_sftp_local_in_path'),
-            'dachser_sftp_local_out_path' => $this->getCredential('dachser_sftp_local_dir') . $this->getCredential('dachser_sftp_local_out_path'),
-            'dachser_sftp_local_out_tmp' => $this->getCredential('dachser_sftp_local_dir') . $this->getCredential('dachser_sftp_local_out_tmp'),
-            'dachser_sftp_local_in_save_path' => $this->getCredential('dachser_sftp_local_dir') . $this->getCredential('dachser_sftp_local_in_save_path'),
-            'dachser_sftp_local_in_tmp' => $this->getCredential('dachser_sftp_local_dir') . $this->getCredential('dachser_sftp_local_in_tmp'),
+            'localInDir' => $this->localInDir,
+            'localInTmpDir' => $this->localInTmpDir,
+            'localInSaveDir' => $this->localInSaveDir,
+            'localOutDir' => $this->localOutDir,
+            'localOutTmpDir' => $this->localOutTmpDir,
         ];
+
         // default dir ist ./bin
         // But the logic wants into project dir
         chdir($this->projectDir);
@@ -239,7 +295,7 @@ class DachserManager
      * @param string $directoryName
      * @return bool
      */
-    private function createDirIfNotExists(string $directoryName): bool
+    protected function createDirIfNotExists(string $directoryName): bool
     {
         //Check if the directory already exists.
         if(!is_dir($directoryName)){
@@ -257,15 +313,15 @@ class DachserManager
      * @return string
      * @throws \Exception
      */
-    private function createFileAndSendToSftpServer($data): bool
+    protected function createFileAndSendToSftpServer($data): bool
     {
         // Change to projectDir
         chdir($this->projectDir);
 
         $filename = sprintf("LAGER%s.CSV", date('YmdHis'));
-        $filepathTmp = $this->getCredential('dachser_sftp_local_dir') . $this->getCredential('dachser_sftp_local_in_tmp') . '/' . $filename;
-        $filepathIn = $this->getCredential('dachser_sftp_local_dir') . $this->getCredential('dachser_sftp_local_in_path') . '/' . $filename;
-        $filePathRemoteIn = $this->getCredential('dachser_sftp_remote_in_path') . '/' . $filename;
+        $filepathTmp = $this->localInTmpDir . '/' . $filename;
+        $filepathIn = $this->localInDir . '/' . $filename;
+        $filePathRemoteIn = $this->remoteInDir . '/' . $filename;
 
         // put delivery contents to temp file
         if (!file_put_contents($filepathTmp, $data)) {
@@ -291,14 +347,15 @@ class DachserManager
      * @return array
      * @throws \Exception
      */
-    private function fetchFilesFromSftpToTmp(): array
+    public function fetchFilesFromSftpToTmp(): array
     {
         // Change to projectDir
         chdir($this->projectDir);
 
-        $localTmpFiles = [];
-        $remoteOutPath = $this->getCredential('dachser_sftp_remote_out_path');
-        $localOutTmp = $this->getCredential('dachser_sftp_local_dir') . '/' . $this->getCredential('dachser_sftp_local_out_tmp');
+        $downloadedFiles = [];
+        $remoteOutPath = $this->remoteOutDir;
+        $localOutTmp = $this->localOutTmpDir;
+        $localOutPath = $this->localOutDir;
 
         if (!$this->sftp->chdir($remoteOutPath)) {
             throw new \Exception(sprintf("Failed to change directory to %s", $remoteOutPath));
@@ -307,25 +364,152 @@ class DachserManager
         $files = $this->sftp->nlist();
 
         foreach ($files as $file) {
-            $this->sftp->get($remoteOutPath . '/' . $file, $localOutTmp . '/' . $file);
+            if (in_array($file, [".", ".."])) {
+                continue;
+            }
+            $remoteFilePath = $remoteOutPath . '/' . $file;
+            $localTmpFilePath = $localOutTmp . '/' . $file;
+            $localOutFilePath = $localOutPath . '/' . $file;
+
+            // Check if file is already downloaded to out/temp directory
+            if (file_exists($localTmpFilePath)) {
+                dump(sprintf("File %s already exists in %s", $file, $localTmpFilePath));
+                continue;
+            }
+
+            // Check if file is already exists in out directory -> is already processed
+            if (file_exists($localOutFilePath)) {
+                dump(sprintf("File %s already exists in %s", $file, $localTmpFilePath));
+                continue;
+            }
+
+            // get file from SFTP and save to tmp dir
+            if (!$this->sftp->get($remoteFilePath, $localTmpFilePath)) {
+                throw new \Exception(sprintf("Cannot get file %s from SFTP-Server to %s", $remoteFilePath, $localTmpFilePath));
+            }
+
+            // save filename for return
+            $downloadedFiles[] = $file;
+
+            // delete from remote SFTP Server if transfered
+            if (!$this->sftp->delete($remoteFilePath, false)) {
+                throw new \Exception(sprintf("Cannot remove file %s from SFTP-Server", $remoteFilePath));
+            }
+        }
+
+        return $downloadedFiles;
+    }
+
+    /**
+     * Move processed temporary file to final out file
+     *
+     * @param $file
+     * @return bool
+     * @throws \Exception
+     */
+    public function moveProcessedTmpFileToOutFile($file): bool
+    {
+        $fromFilePath = $this->localOutTmpDir.'/'.$file;
+        $toFilePath = $this->localOutDir.'/'.$file;
+
+        // Move file to out directory for backup and further check if file already downloaded
+        if (!rename($fromFilePath, $toFilePath)) {
+            throw new \Exception(sprintf("Failed to move processed tmp file %s to %s", $fromFilePath, $toFilePath));
+        }
+
+        return true;
+    }
+
+    /**
+     * Process Dachser files in temporary directory and return type, name and path of the file in an array
+     *
+     * @return array
+     * @throws \Exception
+     */
+    public function fetchDachserTmpFiles(): array
+    {
+        $localOutTmp = $this->localOutTmpDir;
+
+        $fileInformations = [];
+
+        $files = glob($localOutTmp . '/*');
+
+        if (false === $files) {
+            throw new \Exception(sprintf("Unable to parse %s directory. Check existence and permission if directory!", $localOutTmp));
+        }
+
+        foreach ($files as $file) {
+            $filename = basename($file);
+            $fileInformations[] = [
+                'filepath' => $file,
+                'type' => $this->parseTypeFromFileName($filename),
+                'filename' => $filename,
+            ];
+        }
+
+        return $fileInformations;
+    }
+
+    protected function parseTypeFromFileName($file)
+    {
+        preg_match('/([a-z]{5})+[a-z0-9]{0,}\.csv/i', $file, $fileType);
+        if (!empty($fileType[1])) {
+            return $fileType[1];
+        }
+        return "";
+    }
+
+    /**
+     * Process Dachser files in temporary directory and return type, name and path of the file in an array
+     *
+     * @return array
+     * @throws \Exception
+     */
+    protected function parseResponseFromFile($file): array
+    {
+        $localOutTmp = $this->localOutTmpDir;
+
+        $fileInformations = [];
+
+        $files = glob($localOutTmp . '/*');
+
+        if (false === $files) {
+            throw new \Exception(sprintf("Unable to parse %s directory. Check existence and permission if directory!", $localOutTmp));
+        }
+
+        foreach ($files as $file) {
+            $localOutTmpFilePath = $localOutTmp . '/' . $file;
             $fileType = preg_match('/([a-z]{5})+[a-z0-9]{0,}\.csv/i', $file);
-            $localTmpFiles[] = [
-                'filepath' => $localOutTmp . '/' . $file,
+            $fileInformations[] = [
+                'filepath' => strtoupper($localOutTmpFilePath),
                 'type' => $fileType[1],
                 'filename' => $file,
             ];
         }
 
-        return $localTmpFiles;
+        return $fileInformations;
     }
 
-    public function moveProcessedOutFile($filepath) {
-        // TODO: CHECK
-        $processedOutFilePath = str_replace($this->getCredential('dachser_sftp_local_out_tmp'), $this->getCredential('dachser_sftp_local_out_path'), $filepath);
-        if (!rename($filepath, $processedOutFilePath)) {
-            throw new \Exception(sprintf("Failed to move processed tmp file %s to %s", $filepath, $processedOutFilePath));
+    /**
+     * Check if there files in the tmp directory
+     *
+     * @return bool
+     * @throws \Exception
+     */
+    protected function hasTmpFiles(): bool
+    {
+        $localOutTmp = $this->localOutTmpDir;
+
+        $files = glob($localOutTmp . '/*');
+
+        if (false === $files) {
+            throw new \Exception(sprintf("Unable to parse %s directory. Check existence and permission if directory!", $localOutTmp));
         }
 
-        return true;
+        if (!empty($files)) {
+            return true;
+        }
+
+        return false;
     }
 }
