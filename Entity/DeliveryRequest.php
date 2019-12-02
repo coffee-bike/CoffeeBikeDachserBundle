@@ -92,7 +92,7 @@ class DeliveryRequest extends DachserMappingObject
         'strasse_empfaenger' => [
             'short' => 'K',
             'description' => 'Straße Empfänger',
-            'length' => 60,
+            'length' => 30,
             'required' => true
         ],
         'laenderkennzeichen_empfaenger' => [
