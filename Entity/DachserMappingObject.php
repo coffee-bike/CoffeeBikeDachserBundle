@@ -251,8 +251,8 @@ class DachserMappingObject extends DachserObject
      */
     public function checkLength($key, $value)
     {
-        if (strlen($value) > $this->mapping[$key]['length']) {
-            throw new \Exception("Key '{$key}' with value '{$value}' to long (max {$this->mapping[$key]['length']} chars)");
+        if (mb_strlen($value) > $this->mapping[$key]['length']) {
+            throw new \Exception(sprintf("Key '%s' with value '%s' (%s chars) to long (max %s chars)", $key, $value, mb_strlen($value), $this->mapping[$key]['length']));
         }
 
         return $this;
