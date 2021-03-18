@@ -357,6 +357,8 @@ class DachserManager
         $localOutTmp = $this->localOutTmpDir;
         $localOutPath = $this->localOutDir;
 
+        $currentDateTime = new \DateTime();
+
         if (!$this->sftp->chdir($remoteOutPath)) {
             throw new \Exception(sprintf("Failed to change directory to %s", $remoteOutPath));
         }
@@ -379,8 +381,25 @@ class DachserManager
 
             // Check if file is already exists in out directory -> is already processed
             if (file_exists($localOutFilePath)) {
-                dump(sprintf("File %s already exists in %s", $file, $localTmpFilePath));
-                continue;
+
+                // Check modified date to download the newer file again.
+                // Dachsers RUCKPxxx.csv have only range from 001 - 999.
+                // For this reason we need to download the filename again.
+                // We rename the old file with the modfied date as prefix to download the newer file
+                // The newer file needs to be at least 1 week older then the old file
+                $modifiedDate = new \DateTime();
+                $modifiedDate->setTimestamp(filemtime($localOutFilePath));
+                $modifiedDateOneWeekLater = clone($modifiedDate);
+                $modifiedDateOneWeekLater->add(new \DateInterval('P1W'));
+
+                // Check if modified date of local file is at least 1 week older then then the current date
+                if ($modifiedDateOneWeekLater > $currentDateTime) {
+                    dump(sprintf("File %s already exists in %s", $file, $localOutFilePath));
+                    continue;
+                }
+
+                // rename old file and prefix modified date to filename
+                rename($localOutFilePath, $localOutPath . '/' . $modifiedDate->format('Ymd_His') . '_' . $file);
             }
 
             // get file from SFTP and save to tmp dir
